@@ -2,6 +2,22 @@
 
 Reads vector formats, renders them (GDI+ on Windows, Cairo on Linux) and saves to SVG / EMF.
 
+## Formats
+
+- CDR
+- CGM
+- DWG
+- DXF
+- EMF
+- MET
+- ODG
+- PS
+- SVG
+- WMF
+- XAML
+	
+
+
 
 ## Usage
 
