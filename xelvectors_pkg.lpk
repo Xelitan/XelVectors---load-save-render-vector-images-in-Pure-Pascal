@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CONFIG>
+  <Package Version="5">
+    <Name Value="xelvectors_pkg"/>
+    <Type Value="RunAndDesignTime"/>
+    <Author Value="Xelitan.com"/>
+    <CompilerOptions>
+      <Version Value="11"/>
+      <SearchPaths>
+        <IncludeFiles Value="src"/>
+        <OtherUnitFiles Value="src"/>
+        <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
+      </SearchPaths>
+      <Parsing>
+        <SyntaxOptions>
+          <SyntaxMode Value="Delphi"/>
+        </SyntaxOptions>
+      </Parsing>
+      <CodeGeneration>
+        <Optimizations>
+          <OptimizationLevel Value="2"/>
+        </Optimizations>
+      </CodeGeneration>
+      <Other>
+        <CompilerMessages>
+          <IgnoredMessages idx5024="True" idx5023="True" idx3123="True" idx3124="True"/>
+        </CompilerMessages>
+      </Other>
+    </CompilerOptions>
+    <Description Value="XelVectors: reads SVG, SVGZ, WMF, EMF, CDR, MET, DXF, DWG, CGM, ODG, XAML, PS and EPS into an in-memory vector model, renders it with GDI+ (Windows) or Cairo (Linux) and writes SVG and EMF."/>
+    <License Value="MIT"/>
+    <Version Major="0" Minor="1"/>
+    <Files Count="29">
+      <Item1>
+        <Filename Value="src/XelVectors.pas"/>
+        <UnitName Value="XelVectors"/>
+      </Item1>
+      <Item2>
+        <Filename Value="src/XVModel.pas"/>
+        <UnitName Value="XVModel"/>
+      </Item2>
+      <Item3>
+        <Filename Value="src/XVImageCodec.pas"/>
+        <UnitName Value="XVImageCodec"/>
+      </Item3>
+      <Item4>
+        <Filename Value="src/XelInflate.pas"/>
+        <UnitName Value="XelInflate"/>
+      </Item4>
+      <Item5>
+        <Filename Value="src/XVZip.pas"/>
+        <UnitName Value="XVZip"/>
+      </Item5>
+      <Item6>
+        <Filename Value="src/XVRenderCommon.pas"/>
+        <UnitName Value="XVRenderCommon"/>
+      </Item6>
+      <Item7>
+        <Filename Value="src/XVGdiPlusApi.pas"/>
+        <UnitName Value="XVGdiPlusApi"/>
+      </Item7>
+      <Item8>
+        <Filename Value="src/XVRenderGDIPlus.pas"/>
+        <UnitName Value="XVRenderGDIPlus"/>
+      </Item8>
+      <Item9>
+        <Filename Value="src/XVRenderCairo.pas"/>
+        <UnitName Value="XVRenderCairo"/>
+      </Item9>
+      <Item10>
+        <Filename Value="src/XVGdiPlay.pas"/>
+        <UnitName Value="XVGdiPlay"/>
+      </Item10>
+      <Item11>
+        <Filename Value="src/XVCadModel.pas"/>
+        <UnitName Value="XVCadModel"/>
+      </Item11>
+      <Item12>
+        <Filename Value="src/XVReadSVG.pas"/>
+        <UnitName Value="XVReadSVG"/>
+      </Item12>
+      <Item13>
+        <Filename Value="src/XVReadWMF.pas"/>
+        <UnitName Value="XVReadWMF"/>
+      </Item13>
+      <Item14>
+        <Filename Value="src/XVReadEMF.pas"/>
+        <UnitName Value="XVReadEMF"/>
+      </Item14>
+      <Item15>
+        <Filename Value="src/XVReadCDR.pas"/>
+        <UnitName Value="XVReadCDR"/>
+      </Item15>
+      <Item16>
+        <Filename Value="src/XVReadMET.pas"/>
+        <UnitName Value="XVReadMET"/>
+      </Item16>
+      <Item17>
+        <Filename Value="src/XVReadDXF.pas"/>
+        <UnitName Value="XVReadDXF"/>
+      </Item17>
+      <Item18>
+        <Filename Value="src/XVReadDWG.pas"/>
+        <UnitName Value="XVReadDWG"/>
+      </Item18>
+      <Item19>
+        <Filename Value="src/XVReadCGM.pas"/>
+        <UnitName Value="XVReadCGM"/>
+      </Item19>
+      <Item20>
+        <Filename Value="src/XVReadODG.pas"/>
+        <UnitName Value="XVReadODG"/>
+      </Item20>
+      <Item21>
+        <Filename Value="src/XVReadXAML.pas"/>
+        <UnitName Value="XVReadXAML"/>
+      </Item21>
+      <Item22>
+        <Filename Value="src/XVReadPS.pas"/>
+        <UnitName Value="XVReadPS"/>
+      </Item22>
+      <Item23>
+        <Filename Value="src/XVWriteSVG.pas"/>
+        <UnitName Value="XVWriteSVG"/>
+      </Item23>
+      <Item24>
+        <Filename Value="src/XVWriteEMF.pas"/>
+        <UnitName Value="XVWriteEMF"/>
+      </Item24>
+      <Item25>
+        <Filename Value="src/XVCdrCmyk.inc"/>
+        <Type Value="Include"/>
+      </Item25>
+      <Item26>
+        <Filename Value="src/XVCdrDraw.inc"/>
+        <Type Value="Include"/>
+      </Item26>
+      <Item27>
+        <Filename Value="src/XVPSOps.inc"/>
+        <Type Value="Include"/>
+      </Item27>
+      <Item28>
+        <Filename Value="src/XVDwgObjects.inc"/>
+        <Type Value="Include"/>
+      </Item28>
+      <Item29>
+        <Filename Value="src/XVPSFonts.inc"/>
+        <Type Value="Include"/>
+      </Item29>
+    </Files>
+    <RequiredPkgs Count="2">
+      <Item1>
+        <PackageName Value="LCL"/>
+      </Item1>
+      <Item2>
+        <PackageName Value="FCL"/>
+      </Item2>
+    </RequiredPkgs>
+    <UsageOptions>
+      <UnitPath Value="$(PkgOutDir)"/>
+    </UsageOptions>
+    <PublishOptions>
+      <Version Value="2"/>
+    </PublishOptions>
+  </Package>
+</CONFIG>
