@@ -1,0 +1,202 @@
+object ZoomForm: TZoomForm
+  Left = 250
+  Height = 720
+  Top = 120
+  Width = 1000
+  AllowDropFiles = True
+  Caption = 'XelVectors Zoom'
+  DoubleBuffered = True
+  KeyPreview = True
+  Menu = MainMenu
+  Position = poScreenCenter
+  OnCreate = FormCreate
+  OnDestroy = FormDestroy
+  OnDropFiles = FormDropFiles
+  OnKeyDown = FormKeyDown
+  object TopPanel: TPanel
+    Left = 0
+    Height = 36
+    Top = 0
+    Width = 1000
+    Align = alTop
+    BevelOuter = bvNone
+    ClientHeight = 36
+    ClientWidth = 1000
+    TabOrder = 0
+    object BtnOpen: TButton
+      Left = 6
+      Height = 26
+      Top = 5
+      Width = 80
+      Caption = 'Open...'
+      OnClick = OpenClick
+      TabOrder = 0
+      TabStop = False
+    end
+    object BtnZoomIn: TButton
+      Left = 100
+      Height = 26
+      Hint = 'Zoom in (+, mouse wheel)'
+      Top = 5
+      Width = 40
+      Caption = '+'
+      OnClick = ZoomInClick
+      ParentShowHint = False
+      ShowHint = True
+      TabOrder = 1
+      TabStop = False
+    end
+    object BtnZoomOut: TButton
+      Left = 144
+      Height = 26
+      Hint = 'Zoom out (-, mouse wheel)'
+      Top = 5
+      Width = 40
+      Caption = '-'
+      OnClick = ZoomOutClick
+      ParentShowHint = False
+      ShowHint = True
+      TabOrder = 2
+      TabStop = False
+    end
+    object BtnFit: TButton
+      Left = 188
+      Height = 26
+      Hint = 'Whole page (0)'
+      Top = 5
+      Width = 60
+      Caption = 'Fit'
+      OnClick = FitClick
+      ParentShowHint = False
+      ShowHint = True
+      TabOrder = 3
+      TabStop = False
+    end
+    object BtnActual: TButton
+      Left = 252
+      Height = 26
+      Hint = 'Actual size (1)'
+      Top = 5
+      Width = 60
+      Caption = '100 %'
+      OnClick = ActualClick
+      ParentShowHint = False
+      ShowHint = True
+      TabOrder = 4
+      TabStop = False
+    end
+    object LabelZoom: TLabel
+      Left = 326
+      Height = 15
+      Top = 11
+      Width = 60
+      Caption = '100 %'
+    end
+  end
+  object View: TPaintBox
+    Left = 0
+    Height = 661
+    Top = 36
+    Width = 1000
+    Align = alClient
+    Cursor = crHandPoint
+    OnMouseDown = ViewMouseDown
+    OnMouseMove = ViewMouseMove
+    OnMouseUp = ViewMouseUp
+    OnMouseWheel = ViewMouseWheel
+    OnPaint = ViewPaint
+    OnResize = ViewResize
+  end
+  object LabelHint: TLabel
+    AnchorSideLeft.Control = View
+    AnchorSideLeft.Side = asrCenter
+    AnchorSideTop.Control = View
+    AnchorSideTop.Side = asrCenter
+    Left = 330
+    Height = 30
+    Top = 350
+    Width = 340
+    Caption = 'Drop a drawing here or use Open...'
+    Font.Color = clWhite
+    Font.Height = -22
+    ParentFont = False
+  end
+  object StatusBar: TStatusBar
+    Left = 0
+    Height = 23
+    Top = 697
+    Width = 1000
+    Panels = <
+      item
+        Width = 80
+      end
+      item
+        Width = 120
+      end
+      item
+        Width = 140
+      end
+      item
+        Width = 200
+      end>
+    SimplePanel = False
+  end
+  object MainMenu: TMainMenu
+    Left = 40
+    Top = 80
+    object MenuFile: TMenuItem
+      Caption = '&File'
+      object MenuOpen: TMenuItem
+        Caption = '&Open...'
+        ShortCut = 16463
+        OnClick = OpenClick
+      end
+      object MenuSave: TMenuItem
+        Caption = '&Save as SVG / EMF...'
+        ShortCut = 16467
+        OnClick = SaveClick
+      end
+      object MenuSep1: TMenuItem
+        Caption = '-'
+      end
+      object MenuExit: TMenuItem
+        Caption = 'E&xit'
+        OnClick = ExitClick
+      end
+    end
+    object MenuView: TMenuItem
+      Caption = '&View'
+      object MenuZoomIn: TMenuItem
+        Caption = 'Zoom &in'
+        OnClick = ZoomInClick
+      end
+      object MenuZoomOut: TMenuItem
+        Caption = 'Zoom &out'
+        OnClick = ZoomOutClick
+      end
+      object MenuSep2: TMenuItem
+        Caption = '-'
+      end
+      object MenuFit: TMenuItem
+        Caption = '&Fit to window'
+        OnClick = FitClick
+      end
+      object MenuActual: TMenuItem
+        Caption = '&Actual size'
+        OnClick = ActualClick
+      end
+    end
+  end
+  object OpenDialog: TOpenDialog
+    Title = 'Open a vector drawing'
+    Left = 120
+    Top = 80
+  end
+  object SaveDialog: TSaveDialog
+    Title = 'Save as'
+    DefaultExt = '.svg'
+    Filter = 'SVG|*.svg|EMF|*.emf'
+    Left = 200
+    Top = 80
+  end
+end
