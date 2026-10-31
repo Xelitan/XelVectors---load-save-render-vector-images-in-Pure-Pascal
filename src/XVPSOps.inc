@@ -636,7 +636,8 @@ end;
 procedure TPSInterp.OpControl(Code: Integer);
 var
   proc, a, b, c, o: TPSObj;
-  i, n: Int64;
+  i: Integer;
+  n: Int64;
   x, inc_, lim: Double;
   keys, vals: array of TPSObj;
   p: TPair<string, TPSObj>;
