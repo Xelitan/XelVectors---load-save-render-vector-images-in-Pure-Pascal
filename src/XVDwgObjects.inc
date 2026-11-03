@@ -10,13 +10,87 @@ const
   T_VERTEXMESH = 12; T_VERTEXPFACE = 13; T_POLYLINE2D = 15; T_POLYLINE3D = 16; T_ARC = 17; T_CIRCLE = 18;
   T_LINE = 19; T_POINT = 27; T_3DFACE = 28; T_SOLID = 31; T_TRACE = 32; T_ELLIPSE = 35; T_SPLINE = 36;
   T_MTEXT = 44; T_LEADER = 45; T_BLOCKHEADER = 49; T_LAYER = 51; T_STYLE = 53; T_LTYPE = 57;
-  T_LWPOLYLINE = 77; T_HATCH = 78;
+  T_APPID = 67; T_DIMSTYLE = 69; T_LWPOLYLINE = 77; T_HATCH = 78;
   // variable types
-  T_IMAGEDEF = 1002; T_IMAGE = 1003; T_WIPEOUT = 1004;
+  T_IMAGEDEF = 1002; T_IMAGE = 1003; T_WIPEOUT = 1004; T_SORTENTS = 1005;
+
+type
+  // an entity's place in the draw order
+  TSortItem = record
+    Key: Int64;
+    Idx: Integer;
+  end;
+
+function CompareSortItems(constref A, B: TSortItem): Integer;
+begin
+  if A.Key < B.Key then Result := -1
+  else if A.Key > B.Key then Result := 1
+  else Result := A.Idx - B.Idx;
+end;
 
 function IsEntityType(T: Integer): Boolean;
 begin
   Result := (T in [1..41]) or (T in [43..47]) or (T = 74) or (T = 77) or (T = 78) or (T = 498);
+end;
+
+// the items of one application's extended data (the bytes after its handle)
+procedure ParseEed(const B: TBytes; App: Int64; Ver: Integer; var Items: TDwgEed);
+var
+  p, n, c: Integer;
+  it: TDwgEedItem;
+  d: Double;
+  i64: Int64;
+begin
+  p := 0;
+  while p < Length(B) do
+  begin
+    c := B[p];
+    Inc(p);
+    it := Default(TDwgEedItem);
+    it.App := App;
+    it.Code := c;
+    case c of
+      0:
+        if Ver >= R2007 then
+        begin
+          if p + 2 > Length(B) then Exit;
+          n := B[p] or (B[p + 1] shl 8);
+          it.Str := XVUtf16ToUtf8(B, p + 2, Min(2 * n, Length(B) - p - 2));
+          Inc(p, 2 + 2 * n);
+        end
+        else
+        begin
+          if p + 3 > Length(B) then Exit;
+          n := B[p];
+          it.Str := XVCodePageToUtf8(B, p + 3, Min(n, Length(B) - p - 3), 1252);
+          Inc(p, 3 + n);
+        end;
+      2: begin if p < Length(B) then it.Num := B[p]; Inc(p); end;
+      3, 5: Inc(p, 8);
+      4: begin if p < Length(B) then Inc(p, 1 + B[p]) else Exit; end;
+      10..13: Inc(p, 24);
+      40..42:
+        begin
+          if p + 8 > Length(B) then Exit;
+          Move(B[p], d, 8);
+          if IsNan(d) or IsInfinite(d) then d := 0;
+          it.Num := d;
+          Inc(p, 8);
+        end;
+      70: begin if p + 2 > Length(B) then Exit; it.Num := SmallInt(B[p] or (B[p + 1] shl 8)); Inc(p, 2); end;
+      71:
+        begin
+          if p + 4 > Length(B) then Exit;
+          i64 := Cardinal(B[p] or (B[p + 1] shl 8) or (B[p + 2] shl 16) or (Cardinal(B[p + 3]) shl 24));
+          it.Num := i64;
+          Inc(p, 4);
+        end;
+    else
+      Exit;
+    end;
+    SetLength(Items, Length(Items) + 1);
+    Items[High(Items)] := it;
+  end;
 end;
 
 function RadToDeg_(A: Double): Double; inline;
@@ -54,6 +128,11 @@ var
   w: Integer;
   rgb: Cardinal;
   gc: Integer;
+  eed: TDwgEed;
+  eedApp: Int64;
+  eedBytes: TBytes;
+  ds: TDwgDimStyle;
+  sortH: array of Int64;
 
   function T: string;
   begin
@@ -104,12 +183,14 @@ var
     if not xdicMissing then h.ReadHRef(objH);
   end;
 
+  // the name and flags every table entry starts with; R2007 and later have
+  // no xref index
   procedure TableName;
   begin
     name := T;
-    m.ReadB;
-    m.ReadBS;
-    m.ReadB;
+    m.ReadB;                                       // 64-flag
+    if Ver < R2007 then m.ReadBS;                  // xref index + 1
+    m.ReadB;                                       // xref dependent
   end;
 
   procedure EntCommon;
@@ -146,7 +227,11 @@ var
         if (w and $2000) <> 0 then
         begin
           rgb := Cardinal(m.ReadBL);
-          if (rgb shr 24) = 3 then E.Transparency := 1 - (rgb and $FF) / 255;
+          // 1: BYBLOCK, 2: alpha in the low byte (255 opaque)
+          case rgb shr 24 of
+            1: E.Transparency := -1;
+            2, 3: E.Transparency := 1 - (rgb and $FF) / 255;
+          end;
         end;
       end;
     end
@@ -240,6 +325,7 @@ var
     de.LayerH := layerH;
     de.LTypeH := ltypeH;
     de.LTFlags := ltFlags;
+    de.Eed := eed;
     if NEnts >= Length(Ents) then SetLength(Ents, Max(256, NEnts * 2));
     Ents[NEnts] := de;
     Inc(NEnts);
@@ -355,12 +441,15 @@ begin
   if (Ver >= R2000) and (Ver <= R2007) then bitsize := m.ReadRL;
   if Ver >= R2010 then bitsize := size * 8 - hsize;
   objH := m.ReadH(code);
-  // extended entity data
+  // extended data
+  eed := nil;
   repeat
     n := m.ReadBS;
     if n <= 0 then Break;
-    m.ReadH(code);
-    m.Skip(Int64(n) * 8);
+    eedApp := m.ReadH(code);
+    SetLength(eedBytes, n);
+    for i := 0 to n - 1 do eedBytes[i] := m.ReadRC;
+    if not m.Bad then ParseEed(eedBytes, eedApp, Ver, eed);
   until m.Bad;
   if typ >= 500 then
   begin
@@ -371,6 +460,7 @@ begin
     else if c.DxfName = 'IMAGE' then typ := T_IMAGE
     else if c.DxfName = 'WIPEOUT' then typ := T_WIPEOUT
     else if c.DxfName = 'IMAGEDEF' then typ := T_IMAGEDEF
+    else if c.DxfName = 'SORTENTSTABLE' then typ := T_SORTENTS
     else if not isEnt then Exit
     else typ := 1000;
   end
@@ -454,6 +544,7 @@ begin
           if Ver >= R2007 then h.ReadHRef(objH);  // material
           LayerLTypeH.AddOrSetValue(objH, h.ReadHRef(objH));
           LayerIdx.AddOrSetValue(objH, Cad.AddLayer(lay));
+          if eed <> nil then LayerEed.AddOrSetValue(objH, eed);
           Log(Format('layer %x %s color %d off %d flags %d', [objH, name, lay.Color, Ord(lay.Off), fl]));
         end;
       T_LTYPE:
@@ -476,6 +567,39 @@ begin
           SetLength(Cad.LTypes, Length(Cad.LTypes) + 1);
           Cad.LTypes[High(Cad.LTypes)] := lt;
           LTypeNames.AddOrSetValue(objH, name);
+        end;
+      T_APPID:
+        begin
+          TableName;
+          AppNames.AddOrSetValue(objH, name);
+        end;
+      T_DIMSTYLE:
+        if Ver >= R2000 then
+        begin
+          TableName;
+          T; T;                                    // DIMPOST, DIMAPOST
+          ds.Scale := m.ReadBD;
+          ds.ArrowSize := m.ReadBD;
+          if m.Bad or (ds.Scale <= 0) or (ds.Scale > 1e9) then ds.Scale := 1;
+          if m.Bad or (ds.ArrowSize < 0) or (ds.ArrowSize > 1e9) then ds.ArrowSize := 0.18;
+          DimStyles.AddOrSetValue(objH, ds);
+          Log(Format('dimstyle %x %s scale %g arrow %g', [objH, name, ds.Scale, ds.ArrowSize]));
+        end;
+      T_SORTENTS:
+        begin
+          // sort handles in the data, the entities in the handle stream
+          n := m.ReadBL;
+          if (n < 0) or (n > 10000000) then Exit;
+          SetLength(sortH, n);
+          for i := 0 to n - 1 do sortH[i] := m.ReadH(code);
+          ObjHandles;
+          h.ReadHRef(objH);                        // the block
+          for i := 0 to n - 1 do
+          begin
+            k := 0;
+            SortKeys.AddOrSetValue(h.ReadHRef(objH), sortH[i]);
+            if h.Bad then Break;
+          end;
         end;
       T_IMAGEDEF:
         begin
@@ -783,12 +907,33 @@ begin
       begin
         E.Kind := ceLeader;
         m.ReadB;
-        m.ReadBS;
-        m.ReadBS;
+        m.ReadBS;                                   // path type
+        m.ReadBS;                                   // annotation type
         n := m.ReadBL;
         if (n < 0) or (n > 100000) then Exit;
         for i := 0 to n - 1 do AddPt(E.Pts, m.Read3BD);
+        m.Read3BD;                                  // origin
+        E.Extrusion := m.Read3BD;
+        m.Read3BD;                                  // x direction
+        if Ver >= R14 then
+        begin
+          m.Read3BD;                                // offset to the block insertion
+          m.Read3BD;                                // offset of the annotation
+        end;
+        if Ver <= R14 then m.ReadBD;                // dimension gap
+        if Ver < R2010 then
+        begin
+          m.ReadBD; m.ReadBD;                       // box height, width
+          m.ReadB;                                  // hookline direction
+          de.ArrowOn := m.ReadB = 1;
+        end
+        else
+          // R2010 and later: no box; the arrowhead flag comes first
+          de.ArrowOn := m.ReadB = 1;
+        if m.Bad then de.ArrowOn := False;
         EntHandles;
+        h.ReadHRef(objH);                           // annotation
+        de.DimStyleH := h.ReadHRef(objH);
         Keep;
       end;
     T_LWPOLYLINE:
@@ -1038,6 +1183,30 @@ var
   lp: TPair<Int64, Integer>;
   msH, ltH: Int64;
   nm: string;
+  eed: TDwgEed;
+  order: array of TSortItem;
+
+  // DIMASZ x DIMSCALE of a leader: its style, overridden by the ACAD
+  // DSTYLE extended data (group 40 DIMSCALE, 41 DIMASZ)
+  function LeaderArrow(const D: TDwgEnt): Double;
+  var
+    st_: TDwgDimStyle;
+    x: Integer;
+    an: string;
+  begin
+    if not DimStyles.TryGetValue(D.DimStyleH, st_) then
+    begin
+      st_.Scale := 1;
+      st_.ArrowSize := 0.18;
+    end;
+    for x := 0 to High(D.Eed) - 1 do
+      if (D.Eed[x].Code = 70) and AppNames.TryGetValue(D.Eed[x].App, an) and SameText(an, 'ACAD') then
+        case Trunc(D.Eed[x].Num) of
+          40: if D.Eed[x + 1].Num > 0 then st_.Scale := D.Eed[x + 1].Num;
+          41: st_.ArrowSize := D.Eed[x + 1].Num;
+        end;
+    Result := st_.ArrowSize * st_.Scale;
+  end;
 
   function LayerName(H: Int64): string;
   var x: Integer;
@@ -1081,6 +1250,13 @@ begin
   for lp in LayerIdx do
     if LayerLTypeH.TryGetValue(lp.Key, ltH) and LTypeNames.TryGetValue(ltH, nm) then
       Cad.Layers[lp.Value].LType := nm;
+  // layer transparency: extended data of the AcCmTransparency application
+  for lp in LayerIdx do
+    if LayerEed.TryGetValue(lp.Key, eed) then
+      for k := 0 to High(eed) do
+        if (eed[k].Code = 71) and AppNames.TryGetValue(eed[k].App, nm) and SameText(nm, 'AcCmTransparency') and
+          ((Trunc(eed[k].Num) shr 24) = 2) then
+          Cad.Layers[lp.Value].Transparency := 1 - (Trunc(eed[k].Num) and $FF) / 255;
   plIdx := TDictionary<Int64, Integer>.Create;
   insIdx := TDictionary<Int64, Integer>.Create;
   blockIdx := TDictionary<Int64, Integer>.Create;
@@ -1132,9 +1308,32 @@ begin
       Ents[j].Ent.Bulges[k] := e.Ent.Bulges[0];
       if (e.Ent.SWidths[0] > 0) and (Ents[j].Ent.ConstWidth = 0) then Ents[j].Ent.ConstWidth := e.Ent.SWidths[0];
     end;
-    // into model space and blocks, in handle order
+    // leader arrowheads: the dimension style's size, or the leader's override
+    for i := 0 to NEnts - 1 do
+      if Ents[i].Typ = T_LEADER then
+      begin
+        if Ents[i].ArrowOn then Ents[i].Ent.ArrowSize := LeaderArrow(Ents[i]);
+        if Debug then
+        begin
+          nm := '';
+          for k := 0 to High(Ents[i].Eed) do
+            nm := nm + Format(' %x:%d=%g%s', [Ents[i].Eed[k].App, Ents[i].Eed[k].Code, Ents[i].Eed[k].Num, Ents[i].Eed[k].Str]);
+          Log(Format('leader %x arrow %d size %g style %x pts %d eed%s', [Ents[i].Handle, Ord(Ents[i].ArrowOn),
+            Ents[i].Ent.ArrowSize, Ents[i].DimStyleH, Length(Ents[i].Ent.Pts), nm]));
+        end;
+      end;
+    // into model space and blocks, in draw order: by handle, or by the sort
+    // handle a SORTENTSTABLE gives
+    SetLength(order, NEnts);
     for i := 0 to NEnts - 1 do
     begin
+      order[i].Idx := i;
+      if not SortKeys.TryGetValue(Ents[i].Handle, order[i].Key) then order[i].Key := Ents[i].Handle;
+    end;
+    if SortKeys.Count > 0 then TArrayHelper<TSortItem>.Sort(order, TComparer<TSortItem>.Construct(CompareSortItems));
+    for j := 0 to NEnts - 1 do
+    begin
+      i := order[j].Idx;
       e := @Ents[i];
       if e.Typ in [T_VERTEX2D, T_VERTEX3D, T_VERTEXMESH, T_VERTEXPFACE] then Continue;
       if e.Ent.Kind = ceNone then Continue;
@@ -1166,6 +1365,12 @@ begin
         end;
       end;
     for j := 0 to High(Cad.Blocks) do
+    begin
       Log(Format('BLOCK %s: %d', [Cad.Blocks[j].Name, Length(Cad.Blocks[j].Ents)]));
+      for k := 0 to High(Cad.Blocks[j].Ents) do
+        with Cad.Blocks[j].Ents[k] do
+          Log(Format('  B %d layer=%s color=%d tc=%x tr=%.2f lt=%s text=%s inv=%d', [Ord(Kind), Layer, Color, TrueColor,
+            Transparency, LType, Text, Ord(Invisible)]));
+    end;
   end;
 end;

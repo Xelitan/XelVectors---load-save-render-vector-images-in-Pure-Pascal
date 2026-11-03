@@ -20,7 +20,7 @@ unit XVReadDWG;
 interface
 
 uses
-  SysUtils, Classes, Math, Generics.Collections, XVModel, XVCadModel;
+  SysUtils, Classes, Math, Generics.Collections, Generics.Defaults, XVModel, XVCadModel;
 
 function XVIsDWG(const Data: TBytes): Boolean;
 procedure XVReadDWGDoc(Doc: TXVDocument; const Data: TBytes);
@@ -87,8 +87,25 @@ type
   end;
 
   // an entity as read, before names are resolved
+  // an item of extended data: its application, group code (as in DXF,
+  // less 1000) and value
+  TDwgEedItem = record
+    App: Int64;
+    Code: Integer;
+    Num: Double;
+    Str: string;
+  end;
+  TDwgEed = array of TDwgEedItem;
+
+  TDwgDimStyle = record
+    Scale, ArrowSize: Double;      // DIMSCALE, DIMASZ
+  end;
+
   TDwgEnt = record
     Ent: TCadEntity;
+    Eed: TDwgEed;
+    DimStyleH: Int64;
+    ArrowOn: Boolean;
     Typ: Integer;                  // DWG type (variable types mapped to 77 / 78 / ...)
     Handle, Owner: Int64;
     EntMode: Integer;
@@ -121,6 +138,10 @@ type
     LTypeNames, StyleNames: TDictionary<Int64, string>;
     LayerLTypeH: TDictionary<Int64, Int64>;
     ImageDefs: TDictionary<Int64, string>;
+    AppNames: TDictionary<Int64, string>;
+    LayerEed: TDictionary<Int64, TDwgEed>;
+    DimStyles: TDictionary<Int64, TDwgDimStyle>;
+    SortKeys: TDictionary<Int64, Int64>;   // entity -> its place in the draw order
     procedure Log(const S: string);
     function SectionData(const Name: string; out Buf: TBytes): Boolean;
     // containers
@@ -774,6 +795,10 @@ begin
   StyleNames := TDictionary<Int64, string>.Create;
   LayerLTypeH := TDictionary<Int64, Int64>.Create;
   ImageDefs := TDictionary<Int64, string>.Create;
+  AppNames := TDictionary<Int64, string>.Create;
+  LayerEed := TDictionary<Int64, TDwgEed>.Create;
+  DimStyles := TDictionary<Int64, TDwgDimStyle>.Create;
+  SortKeys := TDictionary<Int64, Int64>.Create;
   Debug := GetEnvironmentVariable('XV_DWGDEBUG') <> '';
 end;
 
@@ -785,6 +810,10 @@ begin
   StyleNames.Free;
   LayerLTypeH.Free;
   ImageDefs.Free;
+  AppNames.Free;
+  LayerEed.Free;
+  DimStyles.Free;
+  SortKeys.Free;
   inherited Destroy;
 end;
 

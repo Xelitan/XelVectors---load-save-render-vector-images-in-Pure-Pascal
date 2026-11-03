@@ -114,6 +114,7 @@ type
     // point (Pts[0]), the size in pixels, the clip boundary in pixel
     // coordinates ((-0.5, -0.5) is the upper left corner)
     ImageFile: string;
+    ArrowSize: Double;              // leader: the arrowhead's length, 0 none
     UVec, VVec, ImageSize: TCadVec;
     ClipPts: TCadVecs;
     ClipOn: Boolean;
@@ -126,6 +127,7 @@ type
     LType: string;
     LWeight: Integer;
     Off, Frozen: Boolean;
+    Transparency: Double;           // 0 opaque .. 1 invisible
   end;
 
   TCadLType = record
@@ -469,6 +471,7 @@ type
     LType: string;
     LWeight: Integer;
     Layer: string;                 // the insert's layer, for entities on layer 0
+    Transparency: Double;          // BYBLOCK transparency
     Depth: Integer;
   end;
 
@@ -486,6 +489,7 @@ type
     procedure Entity(const E: TCadEntity; const Ctx: TCadCtx);
     function LayerOf(const E: TCadEntity; const Ctx: TCadCtx): Integer;
     function EntColor(const E: TCadEntity; const Ctx: TCadCtx; LayerI: Integer): TXVColor;
+    function EntTransparency(const E: TCadEntity; const Ctx: TCadCtx; LayerI: Integer): Double;
     function EntLType(const E: TCadEntity; const Ctx: TCadCtx; LayerI: Integer): string;
     function EntLWeight(const E: TCadEntity; const Ctx: TCadCtx; LayerI: Integer): Integer;
     function MakeStroke(const E: TCadEntity; const Ctx: TCadCtx; LayerI: Integer; const M: TXVMatrix): TXVStroke;
@@ -539,7 +543,17 @@ begin
   else if E.Color = 256 then Result := lc
   else if E.Color = 0 then Result := Ctx.Color
   else Result := XVAciColor(Abs(E.Color));
-  if E.Transparency > 0 then Result := XVMulAlpha(Result, 1 - E.Transparency);
+  Result := XVMulAlpha(Result, 1 - EntTransparency(E, Ctx, LayerI));
+end;
+
+// the entity's own transparency, its block insert's (BYBLOCK, < 0) or its
+// layer's (BYLAYER, 0)
+function TCadConv.EntTransparency(const E: TCadEntity; const Ctx: TCadCtx; LayerI: Integer): Double;
+begin
+  if E.Transparency > 0 then Result := E.Transparency
+  else if E.Transparency < 0 then Result := Ctx.Transparency
+  else if LayerI >= 0 then Result := Cad.Layers[LayerI].Transparency
+  else Result := 0;
 end;
 
 function TCadConv.EntLType(const E: TCadEntity; const Ctx: TCadCtx; LayerI: Integer): string;
@@ -1238,7 +1252,9 @@ begin
   b := Cad.Blocks[bi];
   C2 := Ctx;
   C2.Depth := Ctx.Depth + 1;
-  C2.Color := EntColor(E, Ctx, LayerI);
+  // BYBLOCK colour (opaque) and transparency for the block's entities
+  C2.Color := EntColor(E, Ctx, LayerI) or $FF000000;
+  C2.Transparency := EntTransparency(E, Ctx, LayerI);
   C2.LType := EntLType(E, Ctx, LayerI);
   C2.LWeight := EntLWeight(E, Ctx, LayerI);
   if (E.Layer <> '0') or (Ctx.Layer = '') then C2.Layer := E.Layer;
@@ -1266,7 +1282,7 @@ end;
 procedure TCadConv.Entity(const E: TCadEntity; const Ctx: TCadCtx);
 var
   li, i: Integer;
-  P: TXVPath;
+  P, P2: TXVPath;
   M: TXVMatrix;
   col: TXVColor;
   st: TXVStroke;
@@ -1363,6 +1379,23 @@ begin
     ceImage: begin Image(E, Ctx, col); Exit; end;
   end;
   if P.NCmd = 0 then Exit;
+  if (E.Kind = ceLeader) and (E.ArrowSize > 0) and (Length(E.Pts) >= 2) then
+  begin
+    // a closed filled arrowhead at the first point, a third as wide as long
+    nn := CadVec(E.Pts[1].X - E.Pts[0].X, E.Pts[1].Y - E.Pts[0].Y);
+    sw := Hypot(nn.X, nn.Y);
+    if sw > 1e-12 then
+    begin
+      nn := CadVec(nn.X / sw * E.ArrowSize, nn.Y / sw * E.ArrowSize);
+      q[0] := M.Apply(E.Pts[0].X, E.Pts[0].Y);
+      q[1] := M.Apply(E.Pts[0].X + nn.X - nn.Y / 6, E.Pts[0].Y + nn.Y + nn.X / 6);
+      q[2] := M.Apply(E.Pts[0].X + nn.X + nn.Y / 6, E.Pts[0].Y + nn.Y - nn.X / 6);
+      P2 := Default(TXVPath);
+      P2.Clear;
+      P2.AddPolygon(Slice(q, 3), True);
+      Doc.AddPath(P2, XVSolid(col), XVNoStroke);
+    end;
+  end;
   P.Transform(M);
   st := MakeStroke(E, Ctx, li, M);
   // wide closed polylines and donuts are outlines with width
@@ -1523,6 +1556,7 @@ begin
     ctx.LWeight := -3;
     ctx.Layer := '';
     ctx.Depth := 0;
+    ctx.Transparency := 0;
     conv.Ents(Cad.Ents, ctx);
   finally
     conv.ImageNames.Free;

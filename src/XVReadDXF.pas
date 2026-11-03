@@ -39,6 +39,7 @@ type
     CodePage: Integer;
     Utf8: Boolean;
     ImageDefs: TStringList;        // IMAGEDEF handle=file name
+    DimStyles: TStringList;        // DIMSTYLE name=DIMSCALE|DIMASZ
     procedure Tokenize(const Data: TBytes);
     procedure TokenizeBinary(const Data: TBytes);
     function F(i: Integer): Double;
@@ -315,6 +316,8 @@ var
   lt: TCadLType;
   st: TCadStyle;
   inAcad: Boolean;
+  nm, app: string;
+  sc, asz: Double;
 begin
   kind := '';
   while (i < N) and not ((P[i].Code = 0) and (S(i) = 'ENDSEC')) do
@@ -332,6 +335,7 @@ begin
       if (e = 'LAYER') and (kind = 'LAYER') then
       begin
         L := Default(TCadLayer);
+        app := '';
         L.Color := 7; L.TrueColor := -1; L.LWeight := -3; L.LType := 'CONTINUOUS';
         for j := i + 1 to b - 1 do
           case P[j].Code of
@@ -341,6 +345,11 @@ begin
             6: L.LType := S(j);
             370: L.LWeight := I_(j);
             70: L.Frozen := (I_(j) and 1) <> 0;
+            1001: app := S(j);
+            1071:
+              // layer transparency: AcCmTransparency, alpha in the low byte
+              if SameText(app, 'AcCmTransparency') and (((Cardinal(I_(j)) shr 24) and $FF) = 2) then
+                L.Transparency := 1 - (I_(j) and $FF) / 255;
           end;
         Cad.AddLayer(L);
       end
@@ -354,6 +363,19 @@ begin
           end;
         SetLength(Cad.LTypes, Length(Cad.LTypes) + 1);
         Cad.LTypes[High(Cad.LTypes)] := lt;
+      end
+      else if (e = 'DIMSTYLE') and (kind = 'DIMSTYLE') then
+      begin
+        nm := '';
+        sc := 1;
+        asz := 0.18;
+        for j := i + 1 to b - 1 do
+          case P[j].Code of
+            2: nm := UpperCase(Txt(j));
+            40: if F(j) > 0 then sc := F(j);
+            41: asz := F(j);
+          end;
+        if nm <> '' then DimStyles.Values[nm] := XVFmt(sc, 6) + '|' + XVFmt(asz, 6);
       end
       else if (e = 'STYLE') and (kind = 'STYLE') then
       begin
@@ -460,7 +482,8 @@ begin
       420: E.TrueColor := I_(j) and $FFFFFF;
       440: begin
              v := I_(j);
-             if (v and $02000000) <> 0 then E.Transparency := 1 - (v and $FF) / 255;
+             if (v and $02000000) <> 0 then E.Transparency := 1 - (v and $FF) / 255
+             else if (v and $01000000) <> 0 then E.Transparency := -1;      // BYBLOCK
            end;
       48: E.LTScale := F(j);
       370: E.LWeight := I_(j);
@@ -921,11 +944,32 @@ begin
   else if typ = 'LEADER' then
   begin
     E.Kind := ceLeader;
+    k := 1;                                       // arrowhead flag
+    mt := 'STANDARD';
     for j := i + 1 to b - 1 do
       case P[j].Code of
         10: AddPt(E.Pts, F(j), 0, 0);
         20: if Length(E.Pts) > 0 then E.Pts[High(E.Pts)].Y := F(j);
+        71: k := I_(j);
+        3: mt := UpperCase(Txt(j));
       end;
+    if k <> 0 then
+    begin
+      // DIMASZ x DIMSCALE of the style, overridden by the ACAD DSTYLE data
+      w0 := 1; w1 := 0.18;
+      if DimStyles.IndexOfName(mt) >= 0 then
+      begin
+        w0 := XVStrToFloat(Copy(DimStyles.Values[mt], 1, Pos('|', DimStyles.Values[mt]) - 1), 1);
+        w1 := XVStrToFloat(Copy(DimStyles.Values[mt], Pos('|', DimStyles.Values[mt]) + 1, MaxInt), 0.18);
+      end;
+      for j := i + 1 to b - 2 do
+        if (P[j].Code = 1070) and (P[j + 1].Code = 1040) then
+          case I_(j) of
+            40: if F(j + 1) > 0 then w0 := F(j + 1);
+            41: w1 := F(j + 1);
+          end;
+      E.ArrowSize := w0 * w1;
+    end;
     AddEnt(L, E);
   end
   else if typ = 'IMAGE' then
@@ -1059,11 +1103,13 @@ begin
     try
       R.Cad.BaseDir := ExtractFilePath(Doc.SourceFile);
       R.ImageDefs := TStringList.Create;
+      R.DimStyles := TStringList.Create;
       try
         R.Run(Data);
         R.ResolveImages;
       finally
         R.ImageDefs.Free;
+        R.DimStyles.Free;
       end;
       R.P := nil;
       XVCadToDocument(R.Cad, Doc);
