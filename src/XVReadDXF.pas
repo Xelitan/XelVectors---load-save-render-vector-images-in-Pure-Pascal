@@ -502,7 +502,7 @@ var
   j, nl, k, ne, et, nv, i2, nk, nc, nf, nd, npl, c2: Integer;
   L: TCadLoop;
   ed: TCadEdge;
-  hasBulge: Boolean;
+  hasBulge, seen: Boolean;
   pl: TCadPatLine;
   gradColors: Integer;
 
@@ -678,10 +678,11 @@ begin
           for k := 0 to npl - 1 do
           begin
             pl := Default(TCadPatLine);
-            while (j < b) and (P[j].Code in [53, 43, 44, 45, 46, 79]) do
+            seen := False;
+            while (j < b) and (P[j].Code in [53, 43, 44, 45, 46, 79]) and not ((P[j].Code = 53) and seen) do
             begin
               case P[j].Code of
-                53: pl.Angle := F(j);
+                53: begin pl.Angle := F(j); seen := True; end;
                 43: pl.Base.X := F(j); 44: pl.Base.Y := F(j);
                 45: pl.Offset.X := F(j); 46: pl.Offset.Y := F(j);
                 79: begin

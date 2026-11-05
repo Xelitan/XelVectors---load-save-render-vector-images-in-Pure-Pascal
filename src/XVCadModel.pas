@@ -916,7 +916,7 @@ var
   pl: TCadPatLine;
   dx, dy, nx, ny, on_, k, kmin, kmax, t, tmin, tmax, period, tpos, d: Double;
   corners: array[0..3] of TXVPoint;
-  sx, sy, a: Double;
+  sx, sy, a, ex, ey, fa, fb, sgn, d0, d1: Double;
   j, di: Integer;
   st: TXVStroke;
   rule: TXVFillRule;
@@ -984,7 +984,9 @@ begin
   inv := M.Invert;
   bw := XVRect(1e300, 1e300, -1e300, -1e300);
   corners[0] := inv.Apply(b.Left, b.Top); corners[1] := inv.Apply(b.Right, b.Top);
-  corners[2] := inv.Apply(b.Left, b.Bottom); corners[3] := inv.Apply(b.Right, b.Bottom);
+  corners[2] := inv.Apply(b.Right, b.Bottom); corners[3] := inv.Apply(b.Left, b.Bottom);
+  sgn := Sign((corners[1].X - corners[0].X) * (corners[2].Y - corners[1].Y)
+    - (corners[1].Y - corners[0].Y) * (corners[2].X - corners[1].X));
   lines := Default(TXVPath);
   lines.Clear;
   nseg := 0;
@@ -1009,12 +1011,23 @@ begin
     begin
       sx := pl.Base.X + ci * pl.Offset.X;
       sy := pl.Base.Y + ci * pl.Offset.Y;
-      tmin := 1e300; tmax := -1e300;
+      // the part of this line inside the box: anything longer would count
+      // towards the document's bounds although the clip hides it
+      tmin := -1e300; tmax := 1e300;
       for j := 0 to 3 do
       begin
-        t := (corners[j].X - sx) * dx + (corners[j].Y - sy) * dy;
-        tmin := Min(tmin, t); tmax := Max(tmax, t);
+        ex := corners[(j + 1) and 3].X - corners[j].X;
+        ey := corners[(j + 1) and 3].Y - corners[j].Y;
+        fa := sgn * (ex * (sy - corners[j].Y) - ey * (sx - corners[j].X));
+        fb := sgn * (ex * dy - ey * dx);
+        if Abs(fb) < 1e-12 then
+        begin
+          if fa < 0 then tmax := -1e300;
+        end
+        else if fb > 0 then tmin := Max(tmin, -fa / fb)
+        else tmax := Min(tmax, -fa / fb);
       end;
+      if (tmin >= tmax) or (tmin < -1e299) then Continue;
       if (Length(pl.Dashes) = 0) or (period < 1e-9) then
       begin
         lines.MoveTo(sx + tmin * dx, sy + tmin * dy);
@@ -1033,11 +1046,13 @@ begin
             if on_ >= 0 then
             begin
               // a dot is a very short dash
-              if on_ = 0 then on_ := period * 0.01;
-              if tpos + on_ > tmin then
+              if on_ = 0 then on_ := Min(period * 0.01, Hypot(corners[2].X - corners[0].X, corners[2].Y - corners[0].Y) * 0.001);
+              d0 := Max(tpos, tmin);
+              d1 := Min(tpos + on_, tmax);
+              if d1 > d0 then
               begin
-                lines.MoveTo(sx + tpos * dx, sy + tpos * dy);
-                lines.LineTo(sx + (tpos + on_) * dx, sy + (tpos + on_) * dy);
+                lines.MoveTo(sx + d0 * dx, sy + d0 * dy);
+                lines.LineTo(sx + d1 * dx, sy + d1 * dy);
                 Inc(nseg);
               end;
               tpos := tpos + Abs(pl.Dashes[di]);
