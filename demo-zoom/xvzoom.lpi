@@ -24,7 +24,7 @@
     <RequiredPackages>
       <Item>
         <PackageName Value="xelvectors_pkg"/>
-        <DefaultFilename Value="xelvectors_pkg.lpk"/>
+        <DefaultFilename Value="../../xelvectors_pkg.lpk"/>
       </Item>
       <Item>
         <PackageName Value="LCL"/>

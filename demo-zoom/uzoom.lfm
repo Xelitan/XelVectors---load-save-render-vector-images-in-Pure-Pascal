@@ -1,14 +1,18 @@
 object ZoomForm: TZoomForm
-  Left = 250
+  Left = 464
   Height = 720
-  Top = 120
+  Top = 122
   Width = 1000
   AllowDropFiles = True
   Caption = 'XelVectors Zoom'
+  ClientHeight = 720
+  ClientWidth = 1000
   DoubleBuffered = True
   KeyPreview = True
   Menu = MainMenu
+  ParentDoubleBuffered = False
   Position = poScreenCenter
+  LCLVersion = '4.8.0.0'
   OnCreate = FormCreate
   OnDestroy = FormDestroy
   OnDropFiles = FormDropFiles
@@ -29,9 +33,9 @@ object ZoomForm: TZoomForm
       Top = 5
       Width = 80
       Caption = 'Open...'
-      OnClick = OpenClick
       TabOrder = 0
       TabStop = False
+      OnClick = OpenClick
     end
     object BtnZoomIn: TButton
       Left = 100
@@ -40,11 +44,11 @@ object ZoomForm: TZoomForm
       Top = 5
       Width = 40
       Caption = '+'
-      OnClick = ZoomInClick
       ParentShowHint = False
       ShowHint = True
       TabOrder = 1
       TabStop = False
+      OnClick = ZoomInClick
     end
     object BtnZoomOut: TButton
       Left = 144
@@ -53,11 +57,11 @@ object ZoomForm: TZoomForm
       Top = 5
       Width = 40
       Caption = '-'
-      OnClick = ZoomOutClick
       ParentShowHint = False
       ShowHint = True
       TabOrder = 2
       TabStop = False
+      OnClick = ZoomOutClick
     end
     object BtnFit: TButton
       Left = 188
@@ -66,11 +70,11 @@ object ZoomForm: TZoomForm
       Top = 5
       Width = 60
       Caption = 'Fit'
-      OnClick = FitClick
       ParentShowHint = False
       ShowHint = True
       TabOrder = 3
       TabStop = False
+      OnClick = FitClick
     end
     object BtnActual: TButton
       Left = 252
@@ -79,27 +83,27 @@ object ZoomForm: TZoomForm
       Top = 5
       Width = 60
       Caption = '100 %'
-      OnClick = ActualClick
       ParentShowHint = False
       ShowHint = True
       TabOrder = 4
       TabStop = False
+      OnClick = ActualClick
     end
     object LabelZoom: TLabel
       Left = 326
       Height = 15
       Top = 11
-      Width = 60
+      Width = 31
       Caption = '100 %'
     end
   end
   object View: TPaintBox
-    Left = 0
-    Height = 661
-    Top = 36
-    Width = 1000
-    Align = alClient
     Cursor = crHandPoint
+    Left = 0
+    Height = 644
+    Top = 36
+    Width = 983
+    Align = alClient
     OnMouseDown = ViewMouseDown
     OnMouseMove = ViewMouseMove
     OnMouseUp = ViewMouseUp
@@ -114,28 +118,73 @@ object ZoomForm: TZoomForm
     AnchorSideTop.Side = asrCenter
     Left = 330
     Height = 30
-    Top = 350
-    Width = 340
+    Top = 351
+    Width = 341
     Caption = 'Drop a drawing here or use Open...'
     Font.Color = clWhite
     Font.Height = -22
     ParentFont = False
+  end
+  object ScrollV: TScrollBar
+    Left = 983
+    Height = 644
+    Top = 36
+    Width = 17
+    Align = alRight
+    Enabled = False
+    Kind = sbVertical
+    SmallChange = 50
+    TabOrder = 1
+    TabStop = False
+    OnScroll = BarScroll
+  end
+  object BarPanel: TPanel
+    Left = 0
+    Height = 17
+    Top = 680
+    Width = 1000
+    Align = alBottom
+    BevelOuter = bvNone
+    ClientHeight = 17
+    ClientWidth = 1000
+    TabOrder = 2
+    object ScrollH: TScrollBar
+      Left = 0
+      Height = 17
+      Top = 0
+      Width = 983
+      Align = alClient
+      Enabled = False
+      SmallChange = 50
+      TabOrder = 0
+      TabStop = False
+      OnScroll = BarScroll
+    end
+    object BarCorner: TPanel
+      Left = 983
+      Height = 17
+      Top = 0
+      Width = 17
+      Align = alRight
+      BevelOuter = bvNone
+      TabOrder = 1
+    end
   end
   object StatusBar: TStatusBar
     Left = 0
     Height = 23
     Top = 697
     Width = 1000
-    Panels = <
+    Panels = <    
       item
         Width = 80
-      end
+      end    
       item
         Width = 120
-      end
+      end    
       item
         Width = 140
-      end
+      end    
       item
         Width = 200
       end>

@@ -5,8 +5,9 @@ unit uzoom;
 // XelVectors zoom viewer: the main window (laid out in uzoom.lfm).
 //
 // The mouse wheel zooms around the cursor, dragging with the left or middle
-// button pans, and files can be dropped on the window. Keys: + / - zoom,
-// arrows pan, 0 fits the drawing, 1 shows it at 100 %.
+// button or using the scroll bars pans, and files can be dropped on the
+// window. Keys: + / - zoom, arrows pan, 0 fits the drawing, 1 shows it at
+// 100 %.
 //
 // Only the visible part is rendered: for the duration of a render the
 // document's view box is narrowed to the area under the window, so every zoom
@@ -44,6 +45,10 @@ type
     LabelZoom: TLabel;
     LabelHint: TLabel;
     View: TPaintBox;
+    ScrollV: TScrollBar;
+    BarPanel: TPanel;
+    ScrollH: TScrollBar;
+    BarCorner: TPanel;
     StatusBar: TStatusBar;
     OpenDialog: TOpenDialog;
     SaveDialog: TSaveDialog;
@@ -65,6 +70,7 @@ type
     procedure ViewMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
     procedure ViewMouseWheel(Sender: TObject; Shift: TShiftState; WheelDelta: Integer; MousePos: TPoint;
       var Handled: Boolean);
+    procedure BarScroll(Sender: TObject; ScrollCode: TScrollCode; var ScrollPos: Integer);
   private
     FDoc: TXVDocument;
     FBmp: TBitmap;                 // the rendered view
@@ -73,11 +79,15 @@ type
     FDragging: Boolean;
     FDragX, FDragY: Integer;
     FDragOrgX, FDragOrgY: Double;
+    FBarX, FBarY: Double;          // the document point at scroll position 0
+    FScrolling: Boolean;           // a scroll bar is moving the view
     FFileName: string;
     function PageBox: TXVRect;
     function FitZoom: Double;
     procedure PanBy(DX, DY: Integer);
     procedure RenderView;
+    procedure SetBar(Bar: TScrollBar; Lo, Hi, Org: Double; Size: Integer);
+    procedure UpdateScrollBars;
     procedure UpdateStatus;
   public
     procedure LoadFile(const FileName: string);
@@ -192,6 +202,7 @@ begin
     FBmp.Canvas.Brush.Color := clGray;
     FBmp.Canvas.FillRect(0, 0, w, h);
     View.Invalidate;
+    UpdateScrollBars;
     Exit;
   end;
   saveVB := FDoc.ViewBox;
@@ -231,7 +242,61 @@ begin
     end;
   XVRasterToBitmap(r, FBmp);
   View.Invalidate;
+  UpdateScrollBars;
   UpdateStatus;
+end;
+
+// one bar: Lo..Hi is the scrollable span in document units, Org the start of
+// the visible part, Size the window's length in pixels
+procedure TZoomForm.SetBar(Bar: TScrollBar; Lo, Hi, Org: Double; Size: Integer);
+begin
+  Bar.Enabled := (Hi - Lo) * FZoom > Size + 0.5;
+  Bar.SetParams(Round((Org - Lo) * FZoom), 0, Max(Round((Hi - Lo) * FZoom), Size), Size);
+  Bar.LargeChange := EnsureRange(Size * 9 div 10, 1, 32767);
+end;
+
+// The bars span the page and the visible area together, so they stay usable
+// after panning beyond the page. They count window pixels.
+procedure TZoomForm.UpdateScrollBars;
+var
+  page: TXVRect;
+  w, h: Integer;
+begin
+  if FScrolling then Exit;
+  if FDoc.Count = 0 then
+  begin
+    ScrollH.Enabled := False;
+    ScrollV.Enabled := False;
+    Exit;
+  end;
+  w := Max(1, View.Width);
+  h := Max(1, View.Height);
+  page := PageBox;
+  FBarX := Min(page.Left, FOrgX);
+  FBarY := Min(page.Top, FOrgY);
+  SetBar(ScrollH, FBarX, Max(page.Right, FOrgX + w / FZoom), FOrgX, w);
+  SetBar(ScrollV, FBarY, Max(page.Bottom, FOrgY + h / FZoom), FOrgY, h);
+end;
+
+// Both bars. Their range stays as it is until the user lets go: it depends on
+// the view, and changing it would move the thumb under the mouse.
+procedure TZoomForm.BarScroll(Sender: TObject; ScrollCode: TScrollCode; var ScrollPos: Integer);
+begin
+  if FDoc.Count = 0 then Exit;
+  if ScrollCode = scEndScroll then
+  begin
+    UpdateScrollBars;
+    ScrollPos := TScrollBar(Sender).Position;
+    Exit;
+  end;
+  if Sender = ScrollH then FOrgX := FBarX + ScrollPos / FZoom
+  else FOrgY := FBarY + ScrollPos / FZoom;
+  FScrolling := True;
+  try
+    RenderView;
+  finally
+    FScrolling := False;
+  end;
 end;
 
 procedure TZoomForm.UpdateStatus;
